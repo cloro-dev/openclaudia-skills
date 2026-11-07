@@ -156,7 +156,7 @@ cp -r skills/seo-audit .claude/skills/         # project-level
 | `competitor-traffic-report` | Build an interactive competitor traffic, organic search, and domain authority report | SimilarWeb and Ahrefs access |
 | `ai-citations-report` | GEO report: which AI-search prompts cite a domain (Google AI Overview + ChatGPT), via [Enception](https://www.enception.ai)'s paid API | `ENCEPTION_API_KEY` |
 | `geo-analysis` | Full GEO/SEO client analysis with PDF report (AI visibility, market research, competitors), via [Enception](https://www.enception.ai)'s paid API | `ENCEPTION_ANALYSIS_API_KEY` |
-| `cloro-ai-visibility` | Check if ChatGPT, Google AI Mode and Gemini mention or cite a brand, and if Google's AI Overview cites it, per country, via [cloro](https://cloro.dev?utm_source=openclaudia-skills&utm_medium=byok)'s paid API | `CLORO_API_KEY` |
+| `cloro-ai-visibility` | Check if ChatGPT, Google AI Mode, Bing AI Mode and Gemini mention or cite a brand, and if Google's AI Overview cites it, per country, via [cloro](https://cloro.dev?utm_source=openclaudia-skills&utm_medium=byok)'s paid API | `CLORO_API_KEY` |
 
 ### Strategy & Planning
 | Skill | Description |

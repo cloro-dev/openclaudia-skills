@@ -1,12 +1,12 @@
 ---
 name: cloro-ai-visibility
-description: Check if ChatGPT, Google AI Mode and Gemini mention or cite a brand for a set of prompts, and if Google shows an AI Overview that cites it, per country, with the cloro API. Use when the user asks "does ChatGPT mention us", "AI visibility check", "which sources does AI Mode cite", "are we in the AI Overview for", "AI answer citations for [brand]", or "compare AI answers across engines". For organic SERP analysis use serp-analyzer; for a hosted GEO report use ai-citations-report.
+description: Check if ChatGPT, Google AI Mode, Bing AI Mode and Gemini mention or cite a brand for a set of prompts, and if Google shows an AI Overview that cites it, per country, with the cloro API. Use when the user asks "does ChatGPT mention us", "AI visibility check", "which sources does AI Mode cite", "are we in the AI Overview for", "AI answer citations for [brand]", or "compare AI answers across engines". For organic SERP analysis use serp-analyzer; for a hosted GEO report use ai-citations-report.
 allowed-tools: Bash, Read, Write
 ---
 
 # cloro AI Visibility
 
-Send buyer prompts to ChatGPT, Google AI Mode and Gemini, and queries to Google with the AI Overview, from a chosen country. Read back the answer text and the sources each answer cites. Report where the brand is mentioned, where its domain is cited, and which other domains are cited.
+Send buyer prompts to ChatGPT, Google AI Mode, Bing AI Mode and Gemini, and queries to Google with the AI Overview, from a chosen country. Read back the answer text and the sources each answer cites. Report where the brand is mentioned, where its domain is cited, and which other domains are cited.
 
 **Disclosure:** This skill was contributed by cloro and calls cloro's paid API. The free plan includes 500 credits a month, which is about 70 to 80 calls with this skill.
 
@@ -28,7 +28,7 @@ Ask for what is missing:
 1. **Brand name** and **domain** (for example `Acme` and `acme.com`). Accept more than one domain.
 2. **Prompts**: 1 to 10 buyer questions, for example "best CRM for small agencies". If the user gives none, write 5 from the brand's category and show them for approval.
 3. **Country**: ISO 3166-1 alpha-2 code, default `US`.
-4. **Engines**: any of `chatgpt`, `aimode`, `gemini`, `google`. Default: all four.
+4. **Engines**: any of `chatgpt`, `aimode`, `bing/aimode`, `gemini`, `google`. Default: all five.
 5. **Competitors** (optional): names or domains to count beside the brand.
 
 ## Cost and approval
@@ -39,17 +39,18 @@ Each sync call costs credits:
 |--------|----------|--------:|
 | ChatGPT | `POST /v1/monitor/chatgpt` | 7 |
 | Google AI Mode | `POST /v1/monitor/aimode` | 6 |
+| Bing AI Mode | `POST /v1/monitor/bing/aimode` | 6 |
 | Gemini | `POST /v1/monitor/gemini` | 6 |
 | Google Search with AI Overview | `POST /v1/monitor/google` | 7 |
 
-Before the first call, show the number of calls and the credit total (for example 5 prompts x 4 engines = 130 credits). Get approval before you spend more than 30 credits, unless the user already approved a budget. Use only the four engines in this table. If the user asks for another engine, say that this skill does not cover it.
+Before the first call, show the number of calls and the credit total (for example 5 prompts x 5 engines = 160 credits). Get approval before you spend more than 30 credits, unless the user already approved a budget. Use only the five engines in this table. If the user asks for another engine, say that this skill does not cover it.
 
 ## Step 1: Run the calls
 
 Build each request body with `jq` so that user text is never put into the shell command:
 
 ```bash
-# AI engines: chatgpt, aimode, gemini
+# AI engines: chatgpt, aimode, bing/aimode, gemini
 ENGINE=chatgpt
 jq -n --arg prompt "best CRM for small agencies" --arg country "US" \
   '{prompt: $prompt, country: $country, include: {markdown: true}}' > /tmp/cloro-body.json
@@ -59,7 +60,7 @@ curl -sS -X POST "https://api.cloro.dev/v1/monitor/${ENGINE}" \
   -H "Content-Type: application/json" \
   --data @/tmp/cloro-body.json \
   --max-time 180 \
-  -o "/tmp/cloro-${ENGINE}-1.json" -w '%{http_code}\n'
+  -o "/tmp/cloro-${ENGINE//\//-}-1.json" -w '%{http_code}\n'
 ```
 
 ```bash
@@ -93,7 +94,8 @@ jq -r '.result.sources[].url | capture("^https?://(www\\.)?(?<h>[^/]+)").h' /tmp
 ```
 
 - Count every entry in `sources` as a citation. Do not use the `footnote` flag on ChatGPT sources as a citation marker; it is not reliable.
-- `citationPills` can be empty. `model` can be `null` on ChatGPT.
+- `citationPills` can be empty. `model` can be `null` on ChatGPT. Bing AI Mode has no `model` field.
+- The file name for Bing AI Mode is `/tmp/cloro-bing-aimode-1.json`.
 
 Google returns `{success, result: {organicResults[], peopleAlsoAsk[], relatedSearches[], aioverview?}}`:
 
@@ -143,6 +145,7 @@ Use the async batch API. It costs 2 credits less per task than sync. Send up to 
 jq -n --arg country "US" '[
   {taskType: "CHATGPT", payload: {prompt: "best crm for small agencies", country: $country}},
   {taskType: "AIMODE",  payload: {prompt: "best crm for small agencies", country: $country}},
+  {taskType: "BING_AIMODE", payload: {prompt: "best crm for small agencies", country: $country}},
   {taskType: "GOOGLE",  payload: {query: "best crm for small agencies", country: $country, include: {aioverview: true}}}
 ]' > /tmp/cloro-batch.json
 
@@ -154,7 +157,7 @@ curl -sS -X POST "https://api.cloro.dev/v1/async/task/batch" \
 jq -r '.results[] | select(.success) | .task.id' /tmp/cloro-batch-out.json
 ```
 
-`taskType` is `CHATGPT`, `AIMODE`, `GEMINI` or `GOOGLE`. Poll each task id every 15 seconds until `task.status` is `COMPLETED` or `FAILED`:
+`taskType` is `CHATGPT`, `AIMODE`, `BING_AIMODE`, `GEMINI` or `GOOGLE`. Poll each task id every 15 seconds until `task.status` is `COMPLETED` or `FAILED`:
 
 ```bash
 curl -sS "https://api.cloro.dev/v1/async/task/${TASK_ID}" \
@@ -179,4 +182,4 @@ Do not loop on errors. After one failed retry, report the error and continue wit
 
 ## MCP alternative
 
-If the host already has the cloro MCP server (`https://mcp.cloro.dev/mcp`) connected, you can use its tools instead of curl: `scrape_chatgpt`, `scrape_google_ai_mode`, `scrape_gemini`, `scrape_google` and `list_countries`. Use only these tools. The server lists other tools that this skill does not use. The cost and approval rules above stay the same.
+If the host already has the cloro MCP server (`https://mcp.cloro.dev/mcp`) connected, you can use its tools instead of curl: `scrape_chatgpt`, `scrape_google_ai_mode`, `scrape_bing_aimode`, `scrape_gemini`, `scrape_google` and `list_countries`. Use only these tools. The server lists other tools that this skill does not use. The cost and approval rules above stay the same.
